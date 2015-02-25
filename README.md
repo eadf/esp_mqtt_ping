@@ -12,7 +12,7 @@ The makefile is copied from [esp_mqtt.](https://github.com/tuanpmt/esp_mqtt)
 
 # Usage 
 
-The default configuration uses a HC-SR04 connected to GPIO0 (trigger) and GPIO2 (echo).
+The default configuration uses a HC-SR04 connected to GPIO0 (trigger) and GPIO2 (echo). Look at [esp8266_ping](https://github.com/eadf/esp8266_ping) for a more detailed ciruit description.
 
 Look in the console for the mqtt topic it uses (it's unique to each esp).
 
