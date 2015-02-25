@@ -1,8 +1,8 @@
 # esp_mqtt_ping
-esp8266 periodically sends HC-SR04 ping results over MQTT
+esp8266 periodically (4Hz) sends HC-SR04 ping results over MQTT
 
 
-I'm pulling in several subtree projects :
+I'm pulling in several git subtree projects :
 * [tuanpmt's mqtt project: esp_mqtt](https://github.com/tuanpmt/esp_mqtt) 
 * [esp8266_ping](https://github.com/eadf/esp8266_ping)
 * [esp8266_easygpio](https://github.com/eadf/esp8266_easygpio)
