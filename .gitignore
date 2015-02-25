@@ -1,3 +1,12 @@
+# you can put your own userconfig.h here and git will not bother you about it
+localinclude/user_config.h
+
+.settings
+.cproject
+.project
+build/
+firmware/
+
 # Object files
 *.o
 *.ko
