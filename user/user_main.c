@@ -41,12 +41,10 @@
 #include "user_config.h"
 
 MQTT_Client mqttClient;
-
+volatile static bool mqttIsIdle = true;
+#define NUMBER_OF_SENSORS 3
+static Ping_Data pingSetting[NUMBER_OF_SENSORS];
 static volatile os_timer_t loop_timer;
-#define user_procTaskPrio        0
-#define user_procTaskQueueLen    1
-os_event_t user_procTaskQueue[user_procTaskQueueLen];
-
 static char pingTopic[25];    // the MQTT topic we send to
 static char pingMessage[100]; // the MQTT message we send
 
@@ -65,29 +63,50 @@ wifiConnectCb(uint8_t status) {
 }
 
 /**
+ * a callback that tells us if mqtt is busy or not
+ */
+void ICACHE_FLASH_ATTR
+mqttPublishedCb(uint32_t *args) {
+  mqttIsIdle = true;
+}
+
+/**
  * This is the main user program loop
  */
 void ICACHE_FLASH_ATTR
 loop(void) {
-  static float oldDistance = -2.0; // ping_pingDistance() only returns positive values (if any)
+  static float oldDistance[3] = {-2.0, -2.0, -2.0}; // ping_pingDistance() only returns positive values (if any)
   static float maxDistance = 1000; // 1 meter
+  static uint8_t currentSensor = 0; // a counter that iterates over each sensor
+  bool sentSomething = false;
 
   float distance = 0;
-  if (ping_pingDistance(PING_MM, maxDistance, &distance) ) {
-    if (oldDistance!=distance) {
-      os_sprintf(pingMessage,"Distance ~ %d mm", (int)distance);
-      MQTT_Publish(&mqttClient, pingTopic, pingMessage, strlen(pingMessage), 0, 0);
-      os_printf("%s:%s\n", pingTopic, pingMessage);
-      oldDistance = distance;
+  if (mqttIsIdle) {
+    // do nothing if mqtt is busy
+    if (ping_ping(pingSetting+currentSensor, maxDistance, &distance) ) {
+      if (oldDistance[currentSensor] != distance) {
+        os_sprintf(pingMessage,"Sensor %d: Distance ~ %d mm", currentSensor, (int)distance);
+        mqttIsIdle=false;
+        sentSomething=true;
+        MQTT_Publish(&mqttClient, pingTopic, pingMessage, strlen(pingMessage), 0, 0);
+        os_printf("%s:%s\n", pingTopic, pingMessage);
+        oldDistance[currentSensor] = distance;
+      }
+    } else {
+      if (oldDistance[currentSensor] != -1.0) {
+        os_sprintf(pingMessage,"Sensor %d: Failed to get any response.", currentSensor);
+        MQTT_Publish(&mqttClient, pingTopic, pingMessage, strlen(pingMessage), 0, 0);
+        os_printf("%s:%s\n", pingTopic, pingMessage);
+        oldDistance[currentSensor] = -1.0; //
+      }
     }
+    currentSensor = currentSensor>=NUMBER_OF_SENSORS-1?0:currentSensor+1;
   } else {
-    if (oldDistance != -1.0) {
-      os_sprintf(pingMessage,"Failed to get any response.");
-      MQTT_Publish(&mqttClient, pingTopic, pingMessage, strlen(pingMessage), 0, 0);
-      os_printf("%s:%s\n", pingTopic, pingMessage);
-      oldDistance = -1.0; //
-    }
+    os_printf("mqttIsIdle\n");
   }
+
+  // we re-arm timer each iteration, be really quick if nothing was sent
+  os_timer_arm(&loop_timer, sentSomething?PING_SAMPLE_PERIOD:1, false);
 }
 
 static void ICACHE_FLASH_ATTR
@@ -97,17 +116,19 @@ setup(void) {
   MQTT_InitConnection(&mqttClient, sysCfg.mqtt_host, sysCfg.mqtt_port, sysCfg.security);
   MQTT_InitClient(&mqttClient, sysCfg.device_id, sysCfg.mqtt_user, sysCfg.mqtt_pass, sysCfg.mqtt_keepalive, 1);
   MQTT_InitLWT(&mqttClient, "/lwt", "offline", 0, 0);
+  MQTT_OnPublished(&mqttClient, mqttPublishedCb);
   WIFI_Connect(sysCfg.sta_ssid, sysCfg.sta_pwd, wifiConnectCb);
 
-  ping_init(0, 2); // trigger=GPIO0, echo=GPIO2, set the pins to the same value for one-pin-mode
-  //ping_init(2, 2); // trigger=GPIO2, echo=GPIO2, this is one-pin-mode on GPIO2
+  ping_init(pingSetting+0,  2,  0, PING_MM);   // trigger= GPIO2, echo= GPIO0, set the pins to the same value for one-pin-mode
+  ping_init(pingSetting+1,  5,  4, PING_MM);   // trigger= GPIO5, echo= GPIO4, set the pins to the same value for one-pin-mode
+  ping_init(pingSetting+2, 13, 12, PING_MM);   // trigger=GPIO13, echo=GPIO12, set the pins to the same value for one-pin-mode
 
   os_printf("System initiated\n");
 
   // Start loop timer
   os_timer_disarm(&loop_timer);
   os_timer_setfn(&loop_timer, (os_timer_func_t *) loop, NULL);
-  os_timer_arm(&loop_timer, PING_SAMPLE_PERIOD, 1);
+  os_timer_arm(&loop_timer, PING_SAMPLE_PERIOD, false);
 }
 
 void user_init(void) {
