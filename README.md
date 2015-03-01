@@ -1,5 +1,5 @@
 # esp_mqtt_ping
-esp8266 periodically (4Hz) sends HC-SR04 ping results over MQTT
+esp8266 periodically (4Hz) sends ultrasonic sensor ping results over MQTT
 
 
 I'm pulling in several git subtree projects :
@@ -12,7 +12,22 @@ The makefile is copied from [esp_mqtt.](https://github.com/tuanpmt/esp_mqtt)
 
 # Usage 
 
-The default configuration uses a HC-SR04 connected to GPIO0 (trigger) and GPIO2 (echo). Look at [esp8266_ping](https://github.com/eadf/esp8266_ping) for a more detailed ciruit description.
+The default configuration uses a HC-SR04 connected to GPIO2 (trigger) and GPIO0 (echo). Look at [esp8266_ping](https://github.com/eadf/esp8266_ping) for a more detailed ciruit description.
+
+This pin configuration makes it impossible to boot the esp normally. You will have to unplug the trigger pin (GPIO2) during reset.
+I included GPIO2 and GPIO0 so that the demo works on an ESP-1.
+
+esp8266 |  level shifter 3V3| level shifter 5V | HC-SR04
+--------|-------------|-----------------------|------------
+GPIO2   |port1 3V3   | port1 5V| sensor 0 trigger
+GPIO0   | port2 3V3   | port2 5V| sensor 0 echo
+GPIO5   | port3 3V3   | port3 5V| sensor 1 trigger
+GPIO4   | port4 3V3   | port4 5V| sensor 1 echo
+GPIO13   | port5 3V3   | port5 5V| sensor 2 trigger
+GPIO12   | port6 3V3   | port6 5V| sensor 2 echo
+
+This is only how the default app is configured, it is really easy to change.
+You can even configure the sensors in "one-pin mode", that means you can attach one ultrasonic sensor to each interrupt enabled GPIO. See [esp8266_ping](https://github.com/eadf/esp8266_ping) for details.
 
 Look in the console for the mqtt topic it uses (it's unique to each esp).
 
@@ -41,4 +56,4 @@ make clean && make test
 
 You won't be needing esptool, the makefile only uses esptool.py (provided by esp-open-sdk)
 
-I have tested this with sdk v0.9.5 and v0.9.4 (linux & mac)
+I have tested this with sdk v0.9.4 and v0.9.5 (linux & mac)
